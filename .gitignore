@@ -1,0 +1,69 @@
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+build/
+dist/
+
+# ---- Virtual environments ----
+venv/
+.venv/
+env/
+ENV/
+
+# ---- Vector store / embeddings persistence ----
+chroma_store/
+*.sqlite3
+*.chroma
+
+# ---- Eval / regression artifacts (keep golden_set.json, ignore run outputs) ----
+eval/regression_log.json
+eval/regression_log.db
+eval/runs/
+eval/*.log
+
+# ---- Model / cache downloads ----
+.cache/
+*.bin
+*.safetensors
+huggingface_cache/
+sentence_transformers_cache/
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Streamlit ----
+.streamlit/secrets.toml
+
+# ---- Docker ----
+*.pid
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- IDE / editor ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Test / coverage ----
+.pytest_cache/
+.coverage
+htmlcov/
