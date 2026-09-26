@@ -1,0 +1,335 @@
+[
+  {
+    "category": "factual",
+    "question": "How do you declare a path parameter with a specific type in FastAPI?",
+    "expected_answer": "Declare it as a type-annotated function argument matching the name used in curly braces in the path, e.g. @app.get('/items/{item_id}') async def read_item(item_id: int). FastAPI validates and converts the value automatically.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/path-params/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you make a query parameter optional in FastAPI?",
+    "expected_answer": "Give the function parameter a default value of None with an Optional/union type, e.g. q: str | None = None. FastAPI then treats it as an optional query parameter.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/query-params/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you set a default value for a query parameter that is not optional in type but has a fallback value?",
+    "expected_answer": "Assign the default directly in the function signature, e.g. skip: int = 0. FastAPI uses that as the query parameter's default when it isn't provided in the request.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/query-params/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you declare a request body using a Pydantic model in FastAPI?",
+    "expected_answer": "Define a class inheriting from pydantic.BaseModel with typed attributes, then add it as a type-annotated parameter to the path operation function. FastAPI reads the JSON body, validates it against the model, and provides it as that parameter.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/body/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you add a max_length validation constraint to a query parameter string?",
+    "expected_answer": "Use Query() as the default value with the constraint as an argument, e.g. q: str | None = Query(default=None, max_length=50).",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/query-params-str-validations/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you add numeric validations like greater-than and less-or-equal to a path parameter?",
+    "expected_answer": "Use Path() as the parameter's default with gt/le (or ge/lt) arguments, e.g. item_id: int = Path(gt=0, le=1000).",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/path-params-numeric-validations/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you declare multiple body parameters in a single path operation?",
+    "expected_answer": "Add more than one Pydantic-model-typed parameter to the function; FastAPI will expect a JSON body with each parameter's name as a top-level key containing that model's data.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/body-multiple-params/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you add extra validation and metadata to a Pydantic model field, like a title or example?",
+    "expected_answer": "Use Field() as the attribute's default inside the model, e.g. name: str = Field(title='Item name', max_length=50).",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/body-fields/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you declare a cookie parameter in FastAPI?",
+    "expected_answer": "Add a function parameter with Cookie() as its default, e.g. ads_id: str | None = Cookie(default=None).",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/cookie-params/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you declare a header parameter in FastAPI?",
+    "expected_answer": "Add a function parameter with Header() as its default, e.g. user_agent: str | None = Header(default=None). FastAPI automatically converts underscores to hyphens for the actual header lookup.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/header-params/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you change the default HTTP status code returned by a path operation?",
+    "expected_answer": "Pass status_code to the path operation decorator, e.g. @app.post('/items/', status_code=201).",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/response-status-code/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you handle a single file upload in FastAPI?",
+    "expected_answer": "Declare a parameter typed as UploadFile, e.g. file: UploadFile. This gives access to the filename, content type, and an async interface to read the file data without loading it all into memory at once.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/request-files/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you raise a custom HTTP error with a specific status code in FastAPI?",
+    "expected_answer": "Raise fastapi.HTTPException with a status_code and detail message, e.g. raise HTTPException(status_code=404, detail='Item not found').",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/handling-errors/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you add tags to group path operations together in the interactive docs UI?",
+    "expected_answer": "Pass a tags list to the path operation decorator, e.g. @app.get('/items/', tags=['items']). Endpoints sharing a tag are grouped together in the Swagger UI.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/path-operation-configuration/"]
+  },
+  {
+    "category": "factual",
+    "question": "How do you serve static files like CSS or images with FastAPI?",
+    "expected_answer": "Mount starlette.staticfiles.StaticFiles at a path, e.g. app.mount('/static', StaticFiles(directory='static'), name='static').",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/static-files/"]
+  },
+  {
+    "category": "factual",
+    "question": "What does the response_model parameter on a path operation decorator do?",
+    "expected_answer": "It declares the Pydantic model used to validate, document, and filter the output data, independent of what the function actually returns internally — useful for hiding fields like passwords from the response.",
+    "expected_sources": ["https://fastapi.tiangolo.com/tutorial/response-model/"]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do dependencies that use yield interact with background tasks added in the same request?",
+    "expected_answer": "A dependency using yield releases its resource (e.g. closes a DB session) before the response is sent, in versions after FastAPI 0.106.0. Because of this, a background task should not rely on a resource yielded by a dependency; instead it should create its own resource and only receive lightweight data (like an ID) from the request handler.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/",
+      "https://fastapi.tiangolo.com/tutorial/background-tasks/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you combine the OAuth2 password flow with retrieving the current authenticated user in a path operation?",
+    "expected_answer": "Set up OAuth2PasswordBearer as a dependency to extract the token from the Authorization header, then create a get_current_user dependency that decodes/validates that token and returns the user, injecting it into path operations via Depends(get_current_user).",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/security/first-steps/",
+      "https://fastapi.tiangolo.com/tutorial/security/get-current-user/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you organize path operations across multiple files while still applying a dependency to all of them globally?",
+    "expected_answer": "Split routes into separate APIRouter instances per file/module and include them in the main app with app.include_router(). A dependency can be applied to every route regardless of which router it came from by passing dependencies=[Depends(...)] to the main FastAPI() app instance.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/bigger-applications/",
+      "https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you write a test for a FastAPI endpoint that depends on a database connection, without hitting the real database?",
+    "expected_answer": "Use TestClient to make requests against the app, and override the DB dependency using app.dependency_overrides[get_db] = get_test_db so the endpoint receives a fake/test session instead of the real one during tests.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/testing/",
+      "https://fastapi.tiangolo.com/advanced/testing-dependencies/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How does FastAPI let you use different Pydantic models for the data a client sends versus the data returned in the response?",
+    "expected_answer": "You can declare a separate input model (e.g. UserIn, including a password field) and a separate response_model (e.g. UserOut, excluding sensitive fields) on the path operation decorator, so FastAPI validates the incoming body with one model and filters/documents the outgoing response with another.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/extra-models/",
+      "https://fastapi.tiangolo.com/tutorial/response-model/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you set up both CORS support and a custom middleware that adds a timing header, on the same FastAPI app?",
+    "expected_answer": "Add CORSMiddleware via app.add_middleware(CORSMiddleware, ...) with the allowed origins/methods, and separately define a custom @app.middleware('http') function (or another add_middleware call) that measures request duration and sets it as a response header before returning the response.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/cors/",
+      "https://fastapi.tiangolo.com/tutorial/middleware/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do sub-dependencies interact with class-based dependencies in FastAPI?",
+    "expected_answer": "A class used as a dependency (via its __call__ or __init__) can itself declare parameters that are Depends() on other callables, forming a chain; FastAPI resolves the whole dependency tree, calling sub-dependencies first and passing their results up.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/dependencies/classes-as-dependencies/",
+      "https://fastapi.tiangolo.com/tutorial/dependencies/sub-dependencies/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you implement OAuth2 with JWT tokens and hashed passwords together in FastAPI?",
+    "expected_answer": "Store hashed passwords (e.g. via passlib) and verify them during login in a flow modeled on the simple OAuth2 password-and-bearer setup, then, on successful login, encode a JWT access token (using a library like python-jose) containing the user identity, returned to the client and validated on subsequent requests.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/security/simple-oauth2/",
+      "https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you write an automated test for a FastAPI WebSocket endpoint?",
+    "expected_answer": "Use TestClient's websocket_connect() context manager to open a test WebSocket connection to the endpoint defined with @app.websocket(...), then send/receive messages through it just like a real client would, asserting on the responses.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/advanced/websockets/",
+      "https://fastapi.tiangolo.com/advanced/testing-websockets/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you use a SQL database session as a dependency in a larger, multi-file FastAPI application?",
+    "expected_answer": "Define a get_db dependency (typically using yield to close the session afterward) in a shared module, then import and inject it via Depends(get_db) into path operation functions defined across different APIRouter files that make up the bigger application.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/sql-databases/",
+      "https://fastapi.tiangolo.com/tutorial/bigger-applications/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How can you group both query parameters and cookie parameters into reusable Pydantic models on the same endpoint?",
+    "expected_answer": "Declare a Pydantic model for the query parameters and use it as a type-annotated function parameter (query param model support), and separately declare another Pydantic model for cookies the same way (cookie param model support); FastAPI reads each group from its respective part of the request into the matching model.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/query-param-models/",
+      "https://fastapi.tiangolo.com/tutorial/cookie-param-models/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How does the interactive OpenAPI documentation reflect a dependency that itself relies on sub-dependencies?",
+    "expected_answer": "All the parameters, validations, and requirements declared by a dependency and every sub-dependency in its chain are merged into the same path operation's OpenAPI schema, so the interactive docs display all of them together as if they belonged directly to that endpoint.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/dependencies/",
+      "https://fastapi.tiangolo.com/tutorial/dependencies/sub-dependencies/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you use lifespan events together with a settings object to load configuration once when the app starts?",
+    "expected_answer": "Define a lifespan async context manager (or the older startup event) that runs on app startup, and inside it instantiate your Settings (a Pydantic BaseSettings subclass reading from environment variables) so configuration is loaded once and can be reused for the app's lifetime.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/advanced/events/",
+      "https://fastapi.tiangolo.com/advanced/settings/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you deploy a FastAPI app in Docker while also running multiple server worker processes?",
+    "expected_answer": "Build a Docker image that runs the app with a process manager configured for multiple workers (e.g. Uvicorn with the --workers flag, or Gunicorn managing Uvicorn workers), so the container uses more than one worker process to handle concurrent requests across CPU cores.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/deployment/docker/",
+      "https://fastapi.tiangolo.com/deployment/server-workers/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you send a confirmation email in a background task after using a dependency-injected database session to update a record?",
+    "expected_answer": "Inject the DB session dependency into the path operation to perform the update, then call background_tasks.add_task() with a separate function that creates its own DB session (or takes only the record's ID) to send the email — since the yielded session from the original dependency may already be closed by the time the background task runs.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/background-tasks/",
+      "https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do dependencies declared directly in a path operation decorator differ from dependencies declared as function parameters, and when would you combine both?",
+    "expected_answer": "Dependencies passed via the decorator's dependencies=[Depends(...)] list are executed but their return value is not injected into the function; dependencies declared as parameters are both executed and injected. You'd combine both when some dependencies are only needed for their side effects (like enforcing auth) while others provide data the function actually uses.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/",
+      "https://fastapi.tiangolo.com/tutorial/dependencies/"
+    ]
+  },
+  {
+    "category": "multi_hop",
+    "question": "How do you apply security scopes together with getting the current user to restrict access to specific permissions?",
+    "expected_answer": "Declare OAuth2 scopes on the security scheme and require specific scopes in a dependency chain built on top of the get_current_user pattern, so the token's granted scopes are checked against the scopes required by each path operation before access is allowed.",
+    "expected_sources": [
+      "https://fastapi.tiangolo.com/advanced/security/oauth2-scopes/",
+      "https://fastapi.tiangolo.com/tutorial/security/get-current-user/"
+    ]
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I connect a FastAPI application to a Kafka message queue?",
+    "expected_answer": "The FastAPI documentation does not cover Kafka or message-queue integration; this is outside the scope of what these docs address.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "What is FastAPI's built-in ORM and how do I use it for database migrations?",
+    "expected_answer": "FastAPI does not have a built-in ORM; the premise of the question is incorrect. The docs show using external libraries like SQLAlchemy (or SQLModel) for database access, and migrations are handled by separate tools like Alembic, not by FastAPI itself.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I implement rate limiting in Django REST Framework?",
+    "expected_answer": "This question is about Django REST Framework, not FastAPI, and is not covered by the FastAPI documentation.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I configure a Kubernetes Horizontal Pod Autoscaler for my containerized application?",
+    "expected_answer": "Kubernetes autoscaling configuration is not covered by the FastAPI documentation, which focuses on the application framework itself rather than Kubernetes cluster configuration.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I use MongoDB's aggregation pipeline for analytics in a Python backend?",
+    "expected_answer": "MongoDB aggregation pipelines are not covered by the FastAPI documentation; this is a MongoDB-specific topic outside these docs' scope.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "What is the syntax for defining a route in Express.js?",
+    "expected_answer": "Express.js is a separate Node.js framework and its routing syntax is not covered anywhere in the FastAPI documentation.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I set up Redis pub/sub for real-time notifications in a Python application?",
+    "expected_answer": "Redis pub/sub configuration is not documented in the FastAPI docs; this is outside their scope even though FastAPI apps can integrate with Redis in principle.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I configure NGINX with custom rate-limiting rules as a reverse proxy?",
+    "expected_answer": "Detailed NGINX rate-limiting configuration is not covered by the FastAPI documentation; the docs mention proxies only briefly in the context of running behind one, not how to configure NGINX itself.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I write Terraform scripts to provision AWS infrastructure for hosting a FastAPI app?",
+    "expected_answer": "Terraform and AWS infrastructure provisioning are not covered by the FastAPI documentation.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "What are the differences between gRPC and REST when building backend services?",
+    "expected_answer": "The FastAPI documentation is focused on building REST (and WebSocket) APIs and does not cover gRPC or provide a comparison between the two.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I configure Celery with a cron-style schedule to run periodic background jobs for a FastAPI app?",
+    "expected_answer": "The FastAPI documentation only briefly recommends tools like Celery for heavy background processing, without documenting how to configure or schedule Celery jobs; detailed Celery setup is outside these docs' scope.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I set up server-side rendering with Next.js to consume a FastAPI backend?",
+    "expected_answer": "Next.js and server-side rendering setup are not covered by the FastAPI documentation, which treats frontend frameworks only as external API consumers, not as a documented integration.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I implement two-factor authentication (2FA) with an authenticator app in FastAPI?",
+    "expected_answer": "The FastAPI documentation covers OAuth2 password and JWT-based authentication patterns but does not document implementing two-factor authentication or authenticator-app integration.",
+    "expected_sources": []
+  },
+  {
+    "category": "out_of_scope",
+    "question": "How do I set up distributed tracing across microservices using OpenTelemetry with FastAPI?",
+    "expected_answer": "OpenTelemetry and distributed tracing setup are not covered by the FastAPI documentation.",
+    "expected_sources": []
+  }
+]
