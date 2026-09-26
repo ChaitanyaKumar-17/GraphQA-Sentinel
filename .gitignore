@@ -25,6 +25,7 @@ ENV/
 chroma_store/
 *.sqlite3
 *.chroma
+ingestion/data/
 
 # ---- Eval / regression artifacts (keep golden_set.json, ignore run outputs) ----
 eval/regression_log.json
