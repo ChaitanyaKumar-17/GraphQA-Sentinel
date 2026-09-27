@@ -28,7 +28,7 @@ chroma_store/
 ingestion/data/
 
 # ---- Eval / regression artifacts (keep golden_set.json, ignore run outputs) ----
-eval/regression_log.json
+eval/results/
 eval/regression_log.db
 eval/runs/
 eval/*.log

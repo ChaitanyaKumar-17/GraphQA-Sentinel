@@ -113,6 +113,7 @@ def generate_answer(query: str, chunks: list[dict]) -> str:
             {"role": "user", "content": f"Context:\n\n{context_block}\n\nQuestion: {query}"},
         ],
         temperature=0.1,
+	max_tokens=800,
     )
     return response.choices[0].message.content
 
