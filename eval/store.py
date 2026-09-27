@@ -32,19 +32,14 @@ def get_git_commit_hash() -> str | None:
         return None  # not a git repo, git not installed, etc. - non-fatal
 
 
-def load_log() -> list[dict]:
-    if not LOG_PATH.exists():
+def load_log(path: Path = LOG_PATH) -> list[dict]:
+    if not path.exists():
         return []
-    with open(LOG_PATH, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def append_run(label: str, n_questions: int, summary: dict) -> dict:
-    """Appends one row to the regression log and returns the row that
-    was written. `summary` is the {category: {metric: score}} dict
-    run_eval.py already produces; only the "overall" category is stored
-    here as flat top-level metric columns, which is what the dashboard
-    plots trend lines for."""
+def append_run(label: str, n_questions: int, summary: dict, path: Path = LOG_PATH) -> dict:
     overall = summary.get("overall", {})
 
     entry = {
@@ -58,10 +53,10 @@ def append_run(label: str, n_questions: int, summary: dict) -> dict:
         "context_recall": overall.get("context_recall"),
     }
 
-    log = load_log()
+    log = load_log(path)
     log.append(entry)
 
-    with open(LOG_PATH, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(log, f, ensure_ascii=False, indent=2)
 
     return entry

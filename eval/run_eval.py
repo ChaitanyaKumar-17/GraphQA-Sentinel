@@ -4,11 +4,12 @@ eval/run_eval.py
 Runs the golden evaluation set (M3) through the RAG pipeline and scores
 each answer with the four RAGAS metrics (M4), producing a labeled results
 file and a summary table broken down by question category. Also appends
-a summary row to the regression log (M6) for the dashboard to plot.
+a summary row to a regression log (M6/M7) for trend tracking.
 
 Usage:
     python -m eval.run_eval --label baseline --limit 5   # quick smoke test
     python -m eval.run_eval --label baseline             # full run
+    python -m eval.run_eval --label ci --limit 10 --regression-log-path eval/ci_regression_log.json
 """
 
 import argparse
@@ -43,15 +44,17 @@ def score_with_retry(metrics, question, answer, contexts, reference):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--label", required=True, help="e.g. 'baseline' or 'agentic'")
-    parser.add_argument("--limit", type=int, default=None, help="only process first N questions")
+    parser.add_argument("--label", required=True, help="e.g. 'baseline', 'agentic', or 'ci'")
+    parser.add_argument("--limit", type=int, default=None, help="only process a stratified sample of N questions")
+    parser.add_argument("--regression-log-path", type=str, default=None, help="override the default eval/regression_log.json path")
     args = parser.parse_args()
 
     with open(GOLDEN_SET_PATH, "r", encoding="utf-8") as f:
         golden_set = json.load(f)
 
     if args.limit:
-        golden_set = golden_set[: args.limit]
+        step = max(1, len(golden_set) // args.limit)
+        golden_set = golden_set[::step][: args.limit]
 
     metrics = build_metrics()
     per_item_results = []
@@ -122,7 +125,8 @@ def main():
         )
 
     if summary:
-        row = append_run(args.label, len(golden_set), summary)
+        log_path = Path(args.regression_log_path) if args.regression_log_path else None
+        row = append_run(args.label, len(golden_set), summary, path=log_path) if log_path else append_run(args.label, len(golden_set), summary)
         print(f"\nAppended to regression log: {row}")
 
 

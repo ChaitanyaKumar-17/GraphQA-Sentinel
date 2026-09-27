@@ -1,0 +1,74 @@
+name: Eval Regression Gate
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Cache Chroma vector store
+        id: chroma-cache
+        uses: actions/cache@v4
+        with:
+          path: chroma_store
+          key: chroma-${{ hashFiles('ingestion/*.py') }}
+
+      - name: Run ingestion (only on cache miss)
+        if: steps.chroma-cache.outputs.cache-hit != 'true'
+        run: |
+          python ingestion/scrape.py
+          python ingestion/chunk.py
+          python ingestion/embed_and_store.py
+
+      - name: Restore previous CI regression log
+        uses: actions/cache/restore@v4
+        with:
+          path: eval/ci_regression_log.json
+          key: ci-regression-log-${{ github.run_id }}
+          restore-keys: |
+            ci-regression-log-
+
+      - name: Run eval subset (CI smoke gate)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          GROQ_MODEL: openai/gpt-oss-120b
+          JUDGE_MODEL: qwen/qwen3.8-27b
+          CHROMA_PERSIST_DIR: ./chroma_store
+          TARGET_DOCS_URL: https://fastapi.tiangolo.com/
+        run: |
+          python -m eval.run_eval --label ci --limit 10 --regression-log-path eval/ci_regression_log.json
+
+      - name: Save CI regression log for next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: eval/ci_regression_log.json
+          key: ci-regression-log-${{ github.run_id }}
+
+      - name: Check for faithfulness regression
+        run: |
+          python .github/scripts/check_regression.py --metric faithfulness --max-drop-percent 5
