@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphQA-Sentinel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>GraphQA-Sentinel</h1>
+  <span>Self-correcting RAG over the FastAPI docs</span>
+</header>
+
+<div id="chat"></div>
+
+<div id="input-area">
+  <textarea id="question" rows="1" placeholder="Ask a question about FastAPI..."></textarea>
+  <button id="send">Send</button>
+</div>
+
+<script>
+  // Auto-detects whether this page is opened directly as a local file
+  // (development) or served from a real origin (e.g. after the M8
+  // Docker deployment serves it alongside the API) - no manual editing
+  // needed either way.
+  const API_BASE_URL = window.location.protocol === "file:" ? "http://localhost:8000" : "";
+
+  const chat = document.getElementById("chat");
+  const questionInput = document.getElementById("question");
+  const sendButton = document.getElementById("send");
+
+  // --- Minimal, dependency-free markdown rendering ---------------------
+  // Handles just what these answers actually use: fenced code blocks,
+  // inline code, bold, and bullet/numbered lists. Not a full markdown
+  // spec implementation - intentionally small and self-contained rather
+  // than pulling in an external library.
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function formatMarkdown(raw) {
+    const codeBlocks = [];
+
+    // Pull out fenced code blocks first so nothing inside them gets
+    // touched by the bold/inline-code rules below.
+    let text = raw.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+      const index = codeBlocks.length;
+      codeBlocks.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+      return `\u0000CODEBLOCK${index}\u0000`;
+    });
+
+    text = escapeHtml(text);
+    text = text.replace(/`([^`]+)`/g, (m, code) => `<code>${code}</code>`);
+    text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+    const lines = text.split("\n");
+    let html = "";
+    let inList = null;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const bulletMatch = trimmed.match(/^[-*]\s+(.*)/);
+      const numberedMatch = trimmed.match(/^\d+\.\s+(.*)/);
+
+      if (bulletMatch) {
+        if (inList !== "ul") { if (inList) html += `</${inList}>`; html += "<ul>"; inList = "ul"; }
+        html += `<li>${bulletMatch[1]}</li>`;
+      } else if (numberedMatch) {
+        if (inList !== "ol") { if (inList) html += `</${inList}>`; html += "<ol>"; inList = "ol"; }
+        html += `<li>${numberedMatch[1]}</li>`;
+      } else {
+        if (inList) { html += `</${inList}>`; inList = null; }
+        if (trimmed !== "") {
+          html += `<p>${line}</p>`;
+        }
+      }
+    }
+    if (inList) html += `</${inList}>`;
+
+    html = html.replace(/\u0000CODEBLOCK(\d+)\u0000/g, (m, i) => codeBlocks[Number(i)]);
+    return html;
+  }
+
+  // --- Chat rendering ----------------------------------------------------
+
+  function appendPlainMessage(role, text) {
+    const msg = document.createElement("div");
+    msg.className = `msg ${role}`;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    msg.appendChild(bubble);
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+    return msg;
+  }
+
+  function appendAssistantResult(result) {
+    const msg = document.createElement("div");
+    msg.className = "msg assistant";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = formatMarkdown(result.answer || "");
+    msg.appendChild(bubble);
+
+    if (result.sources && result.sources.length > 0) {
+      const sourcesDiv = document.createElement("div");
+      sourcesDiv.className = "sources";
+      sourcesDiv.innerHTML = "Sources: " + result.sources
+        .map(url => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`)
+        .join(", ");
+      msg.appendChild(sourcesDiv);
+    }
+
+    if ("retry_count" in result) {
+      const diag = document.createElement("div");
+      diag.className = "diagnostics";
+      diag.textContent =
+        `retries: ${result.retry_count} | web fallback: ${result.used_web_fallback} | self-check passed: ${result.self_check_passed}`;
+      msg.appendChild(diag);
+    }
+
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  async function sendQuestion() {
+    const question = questionInput.value.trim();
+    if (!question) return;
+
+    appendPlainMessage("user", question);
+    questionInput.value = "";
+    sendButton.disabled = true;
+
+    const loadingMsg = appendPlainMessage("assistant", "Thinking...");
+    loadingMsg.querySelector(".bubble").classList.add("loading");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const result = await response.json();
+      loadingMsg.remove();
+      appendAssistantResult(result);
+    } catch (err) {
+      loadingMsg.remove();
+      appendPlainMessage("assistant error", `Something went wrong: ${err.message}`);
+    } finally {
+      sendButton.disabled = false;
+      questionInput.focus();
+    }
+  }
+
+  sendButton.addEventListener("click", sendQuestion);
+  questionInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendQuestion();
+    }
+  });
+
+  questionInput.focus();
+</script>
+
+</body>
+</html>
