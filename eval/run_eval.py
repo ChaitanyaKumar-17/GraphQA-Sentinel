@@ -15,6 +15,7 @@ Usage:
 import argparse
 import json
 import time
+import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ GOLDEN_SET_PATH = Path(__file__).parent / "golden_set.json"
 RESULTS_DIR = Path(__file__).parent / "results"
 JUDGE_REQUEST_DELAY_SECONDS = 1
 MAX_RETRIES = 5
+MIN_SCORE_SUCCESS_RATE = 0.7  # if fewer than 70% of sampled questions score successfully, treat the run as unreliable
 
 
 def score_with_retry(metrics, question, answer, contexts, reference):
@@ -113,7 +115,7 @@ def main():
 
         time.sleep(JUDGE_REQUEST_DELAY_SECONDS)
 
-    print(f"\nSaved results to {output_path}\n")
+        print(f"\nSaved results to {output_path}\n")
     print(f"{'Category':<15} {'Faithfulness':<14} {'AnswerRel':<12} {'CtxPrecision':<14} {'CtxRecall':<10}")
     for category, scores_dict in summary.items():
         print(
@@ -123,6 +125,21 @@ def main():
             f"{scores_dict.get('context_precision', float('nan')):<14.3f} "
             f"{scores_dict.get('context_recall', float('nan')):<10.3f}"
         )
+
+    n_total = len(per_item_results)
+    n_scored = sum(1 for r in per_item_results if r["scores"] is not None)
+    success_rate = n_scored / n_total if n_total else 0.0
+
+    print(f"\nScored {n_scored}/{n_total} questions successfully ({success_rate:.0%}).")
+
+    if success_rate < MIN_SCORE_SUCCESS_RATE:
+        print(
+            f"\nFAIL: only {success_rate:.0%} of questions produced complete scores, "
+            f"below the {MIN_SCORE_SUCCESS_RATE:.0%} reliability threshold. This run's "
+            f"numbers are not trustworthy (likely an API rate-limit or outage issue, "
+            f"not a real pipeline regression) - refusing to append to the regression log."
+        )
+        sys.exit(1)
 
     if summary:
         log_path = Path(args.regression_log_path) if args.regression_log_path else None
