@@ -3,7 +3,8 @@ eval/run_eval.py
 
 Runs the golden evaluation set (M3) through the RAG pipeline and scores
 each answer with the four RAGAS metrics (M4), producing a labeled results
-file and a summary table broken down by question category.
+file and a summary table broken down by question category. Also appends
+a summary row to the regression log (M6) for the dashboard to plot.
 
 Usage:
     python -m eval.run_eval --label baseline --limit 5   # quick smoke test
@@ -19,10 +20,11 @@ from pathlib import Path
 
 from api.rag_pipeline import generate_answer, retrieve
 from eval.metrics import build_metrics, score_sample
+from eval.store import append_run
 
 GOLDEN_SET_PATH = Path(__file__).parent / "golden_set.json"
 RESULTS_DIR = Path(__file__).parent / "results"
-JUDGE_REQUEST_DELAY_SECONDS = 1  # light buffer between questions; in-sample pacing does the heavy lifting
+JUDGE_REQUEST_DELAY_SECONDS = 1
 MAX_RETRIES = 5
 
 
@@ -88,8 +90,6 @@ def main():
                 category_scores[category][metric_name].append(value)
                 category_scores["overall"][metric_name].append(value)
 
-        # Save progress after every question so a crash near the end
-        # doesn't lose the whole run.
         summary = {
             cat: {
                 metric_name: round(sum(values) / len(values), 4)
@@ -120,6 +120,10 @@ def main():
             f"{scores_dict.get('context_precision', float('nan')):<14.3f} "
             f"{scores_dict.get('context_recall', float('nan')):<10.3f}"
         )
+
+    if summary:
+        row = append_run(args.label, len(golden_set), summary)
+        print(f"\nAppended to regression log: {row}")
 
 
 if __name__ == "__main__":
