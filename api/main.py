@@ -1,16 +1,21 @@
 """
 api/main.py
 
-FastAPI app exposing the GraphQA-Sentinel baseline RAG pipeline.
-POST /chat  - ask a question, get an answer + source URLs
-GET  /health - liveness check
+FastAPI app exposing GraphQA-Sentinel.
+
+POST /chat          - agentic pipeline (M5): self-correcting retrieval,
+                       grading, retry/web-fallback, self-check
+POST /chat/baseline  - original M2 pipeline (plain retrieve-then-generate),
+                       kept alongside for manual comparison/debugging
+GET  /health         - liveness check
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from api.rag_pipeline import answer_question
+from agent.graph import answer_question_agentic
+from api.rag_pipeline import answer_question as answer_question_baseline
 
 app = FastAPI(title="GraphQA-Sentinel API")
 
@@ -34,12 +39,24 @@ class ChatResponse(BaseModel):
     sources: list[str]
 
 
+class AgenticChatResponse(ChatResponse):
+    used_web_fallback: bool = False
+    retry_count: int = 0
+    self_check_passed: bool = True
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=AgenticChatResponse)
 def chat(request: ChatRequest):
-    result = answer_question(request.question)
+    result = answer_question_agentic(request.question)
+    return AgenticChatResponse(**result)
+
+
+@app.post("/chat/baseline", response_model=ChatResponse)
+def chat_baseline(request: ChatRequest):
+    result = answer_question_baseline(request.question)
     return ChatResponse(**result)

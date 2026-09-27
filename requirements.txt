@@ -25,6 +25,9 @@ ragas>=0.2.0
 langchain-community==0.4.1  # pinned: ragas 0.4.3 breaks on 0.4.2+ (missing ChatVertexAI shim)
 datasets>=3.0.0
 
+tavily-python>=0.5.0
+duckduckgo-search>=6.0.0
+
 # Dashboard
 streamlit>=1.38.0
 pandas>=2.2.0
