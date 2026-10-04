@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": "2026-10-04T03:58:51.241354+00:00",
+    "commit": "9c4c703",
+    "label": "baseline",
+    "n_questions": 12,
+    "faithfulness": 0.7976,
+    "answer_relevancy": 0.6247,
+    "context_precision": 0.574,
+    "context_recall": 0.5972
+  },
+  {
+    "timestamp": "2026-10-04T04:32:58.608570+00:00",
+    "commit": "9c4c703",
+    "label": "agentic",
+    "n_questions": 12,
+    "faithfulness": 0.7395,
+    "answer_relevancy": 0.6626,
+    "context_precision": 0.5709,
+    "context_recall": 0.5417
+  }
+]

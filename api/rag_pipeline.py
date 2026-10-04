@@ -21,7 +21,7 @@ load_dotenv()
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_store")
 COLLECTION_NAME = "graphqa_chunks"
 EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 TOP_K = 5
 

@@ -7,9 +7,17 @@ two conditional-edge routing functions the graph uses.
 
 Each node takes the current graph state and returns a dict of only the
 keys it updates; LangGraph merges these into the running state.
+
+The app LLM (openai/gpt-oss-120b) is a reasoning model: hidden thinking
+tokens count against max_tokens and against Groq's token quotas. The
+small utility calls (query rewrite, grader, self-check) therefore run at
+reasoning_effort="low"; only the answer-writing call uses the default.
 """
 
 import json
+import time
+
+from groq import RateLimitError
 
 from agent.tools import web_search
 from api.rag_pipeline import (
@@ -20,12 +28,10 @@ from api.rag_pipeline import (
     retrieve,
 )
 
-import time
-
-from groq import RateLimitError
-
 MAX_RETRIES = 2
 MIN_RELEVANT_CHUNKS = 2
+LLM_CALL_DELAY_SECONDS = 6  # keep comfortably under the free-tier tokens-per-minute cap
+MAX_LLM_RETRIES = 3
 
 QUERY_REWRITE_SYSTEM_PROMPT = """You rewrite user questions into effective \
 search queries for a documentation retrieval system covering FastAPI. \
@@ -63,11 +69,20 @@ em-dashes or curly quotes).
 """
 
 
-LLM_CALL_DELAY_SECONDS = 6  # keep comfortably under gpt-oss-120b's 8000 TPM free-tier ceiling
-MAX_LLM_RETRIES = 3
+def _extra_body(reasoning_effort: str | None) -> dict | None:
+    # Only gpt-oss models understand low/medium/high; sending it to other
+    # models could be rejected, so it is gated on the model name.
+    if reasoning_effort and "gpt-oss" in GROQ_MODEL:
+        return {"reasoning_effort": reasoning_effort}
+    return None
 
 
-def _llm_call(system_prompt: str, user_content: str, temperature: float = 0.1) -> str:
+def _llm_call(
+    system_prompt: str,
+    user_content: str,
+    temperature: float = 0.1,
+    reasoning_effort: str | None = None,
+) -> str:
     client = get_groq_client()
 
     for attempt in range(1, MAX_LLM_RETRIES + 1):
@@ -80,11 +95,14 @@ def _llm_call(system_prompt: str, user_content: str, temperature: float = 0.1) -
                 ],
                 temperature=temperature,
                 max_tokens=800,
+                extra_body=_extra_body(reasoning_effort),
             )
             time.sleep(LLM_CALL_DELAY_SECONDS)
-            return response.choices[0].message.content.strip()
+            # content can be None if the model spent its whole budget thinking
+            return (response.choices[0].message.content or "").strip()
         except RateLimitError as e:
-            if attempt == MAX_LLM_RETRIES:
+            # A per-day limit won't clear by waiting a few seconds - surface it.
+            if "per day" in str(e) or attempt == MAX_LLM_RETRIES:
                 raise
             wait = 10 * attempt
             print(f"  [agent LLM call rate-limited, retrying in {wait}s] {e}")
@@ -109,8 +127,9 @@ def query_analyzer_node(state: dict) -> dict:
         user_content = f"Original question: {state['question']}"
         retry_count = 0
 
-    rewritten = _llm_call(QUERY_REWRITE_SYSTEM_PROMPT, user_content)
-    return {"rewritten_query": rewritten, "retry_count": retry_count}
+    rewritten = _llm_call(QUERY_REWRITE_SYSTEM_PROMPT, user_content, reasoning_effort="low")
+    # If the model returned nothing usable, fall back to the raw question.
+    return {"rewritten_query": rewritten or state["question"], "retry_count": retry_count}
 
 
 def retriever_node(state: dict) -> dict:
@@ -132,7 +151,7 @@ def grader_node(state: dict) -> dict:
     )
     user_content = f"Query: {state['rewritten_query']}\n\nChunks:\n\n{numbered}"
 
-    raw = _llm_call(GRADER_SYSTEM_PROMPT, user_content, temperature=0.0)
+    raw = _llm_call(GRADER_SYSTEM_PROMPT, user_content, temperature=0.0, reasoning_effort="low")
 
     try:
         verdicts = json.loads(raw)
@@ -189,12 +208,12 @@ def self_check_node(state: dict) -> dict:
     context_block = build_context_block(context_chunks)
 
     user_content = f"Context:\n\n{context_block}\n\nDraft answer:\n\n{state['draft_answer']}"
-    raw = _llm_call(SELF_CHECK_SYSTEM_PROMPT, user_content, temperature=0.0)
+    raw = _llm_call(SELF_CHECK_SYSTEM_PROMPT, user_content, temperature=0.0, reasoning_effort="low")
 
     try:
         result = json.loads(raw)
         faithful = bool(result.get("faithful", True))
-    except (json.JSONDecodeError, TypeError):
+    except (json.JSONDecodeError, TypeError, AttributeError):
         faithful = True
 
     return {"self_check_passed": faithful}

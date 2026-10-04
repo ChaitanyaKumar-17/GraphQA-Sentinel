@@ -92,13 +92,17 @@ def get_graph():
 def answer_question_agentic(question: str) -> dict:
     """Runs the full agentic pipeline for one question. Shaped like
     api.rag_pipeline.answer_question()'s output (answer, sources), plus
-    diagnostic fields useful for manual testing and the eval harness."""
+    diagnostic fields, plus the context passages the answer was actually
+    generated from (needed by the eval harness; the API ignores it)."""
     app = get_graph()
     result = app.invoke({"question": question})
+
+    context_chunks = result.get("web_results") or result.get("graded_chunks") or []
 
     return {
         "answer": result.get("final_answer", ""),
         "sources": result.get("sources", []),
+        "contexts": [c["text"] for c in context_chunks],
         "used_web_fallback": result.get("used_web_fallback", False),
         "retry_count": result.get("retry_count", 0),
         "self_check_passed": result.get("self_check_passed", True),
