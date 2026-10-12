@@ -19,7 +19,9 @@ from agent.nodes import (
     query_analyzer_node,
     retriever_node,
     route_after_grading,
+    route_after_scope_check,
     route_after_self_check,
+    scope_check_node,
     self_check_node,
     web_search_node,
 )
@@ -31,6 +33,7 @@ class GraphState(TypedDict, total=False):
     retry_count: int
     retrieved_chunks: list[dict]
     graded_chunks: list[dict]
+    is_in_scope: bool
     used_web_fallback: bool
     web_results: list[dict]
     draft_answer: str
@@ -46,6 +49,7 @@ def build_graph():
     graph.add_node("query_analyzer", query_analyzer_node)
     graph.add_node("retriever", retriever_node)
     graph.add_node("grader", grader_node)
+    graph.add_node("scope_check", scope_check_node)
     graph.add_node("web_search", web_search_node)
     graph.add_node("generator", generator_node)
     graph.add_node("self_check", self_check_node)
@@ -60,7 +64,16 @@ def build_graph():
         {
             "generate": "generator",
             "retry": "query_analyzer",
+            "scope_check": "scope_check",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "scope_check",
+        route_after_scope_check,
+        {
             "web_search": "web_search",
+            "end": END,
         },
     )
 

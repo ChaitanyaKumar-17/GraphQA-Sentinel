@@ -86,6 +86,20 @@ numbers inline like [1] or [1][3]. Use plain ASCII punctuation only (no \
 em-dashes or curly quotes).
 """
 
+SCOPE_CHECK_SYSTEM_PROMPT = """You decide whether a user question is within \
+the scope of a documentation assistant for FastAPI (the Python web framework). \
+Respond with ONLY a JSON object: {"in_scope": true or false}. \
+A question is in-scope if it is about FastAPI concepts, usage, or its official \
+documentation. A question is out-of-scope if it is primarily about a different \
+technology (Kubernetes, Terraform, Redis, Next.js, etc.) even if that technology \
+could be used alongside FastAPI. No other text.
+"""
+
+OUT_OF_SCOPE_ANSWER = (
+    "That question is outside the scope of the FastAPI documentation this "
+    "assistant covers. I can only answer questions about FastAPI itself."
+)
+
 
 def _extra_body(reasoning_effort: str | None) -> dict | None:
     # Only gpt-oss models understand low/medium/high; sending it to other
@@ -183,17 +197,58 @@ def grader_node(state: dict) -> dict:
 def route_after_grading(state: dict) -> str:
     """Conditional edge: enough relevant chunks -> generate. Otherwise
     retry (rewrite + retrieve again) up to MAX_RETRIES times total,
-    then fall back to web search."""
+    then scope-check before deciding whether to fall back to web search."""
     if len(state.get("graded_chunks", [])) >= MIN_RELEVANT_CHUNKS:
         return "generate"
     if state.get("retry_count", 0) < MAX_RETRIES:
         return "retry"
-    return "web_search"
+    return "scope_check"
+
+
+def scope_check_node(state: dict) -> dict:
+    """Runs after retrieval retries are exhausted. Classifies whether the
+    question is within the FastAPI documentation scope.
+
+    - In-scope but corpus gap (e.g. a FastAPI feature we didn't scrape):
+      sets is_in_scope=True so the router sends the flow to web_search.
+    - Out-of-scope (Kubernetes, Terraform, Redis, etc.):
+      sets is_in_scope=False and writes the final decline answer directly,
+      bypassing web_search and generator entirely.
+    """
+    raw = _llm_call(
+        SCOPE_CHECK_SYSTEM_PROMPT,
+        f"Question: {state['question']}",
+        temperature=0.0,
+        reasoning_effort="low",
+    )
+    try:
+        in_scope = bool(json.loads(raw).get("in_scope", True))
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        in_scope = True  # fail open: if unsure, allow web search
+
+    if in_scope:
+        return {"is_in_scope": True}
+
+    return {
+        "is_in_scope": False,
+        "final_answer": OUT_OF_SCOPE_ANSWER,
+        "sources": [],
+        "draft_answer": OUT_OF_SCOPE_ANSWER,
+        "self_check_passed": True,  # no need to self-check a canned decline
+    }
+
+
+def route_after_scope_check(state: dict) -> str:
+    """Conditional edge after scope_check: in-scope gaps go to web search,
+    out-of-scope questions go straight to end."""
+    return "web_search" if state.get("is_in_scope", True) else "end"
 
 
 def web_search_node(state: dict) -> dict:
     """Falls back to a scoped web search when local retrieval, even
-    after retries, didn't find enough relevant documentation."""
+    after retries, didn't find enough relevant documentation.
+    Only reached for in-scope questions (scope_check_node already
+    filtered out off-topic questions)."""
     results = web_search(state["rewritten_query"])
     return {"web_results": results, "used_web_fallback": True}
 
