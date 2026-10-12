@@ -61,7 +61,7 @@ METRIC_NAMES = ["faithfulness", "answer_relevancy", "context_precision", "contex
 
 MAX_RATE_LIMIT_RETRIES = 8
 MAX_BACKOFF_SECONDS = 90.0
-DAILY_WAIT_CEILING_SECONDS = 45 * 60  # per-day limits replenish continuously; wait it out below this
+DAILY_WAIT_CEILING_SECONDS = 5 * 60  # wait out short daily-limit pauses; stop cleanly for longer ones
 
 
 class DailyQuotaExhausted(RuntimeError):

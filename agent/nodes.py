@@ -22,7 +22,6 @@ from groq import RateLimitError
 from agent.tools import web_search
 from api.rag_pipeline import (
     GROQ_MODEL,
-    SYSTEM_PROMPT as GENERATOR_SYSTEM_PROMPT,
     build_context_block,
     get_groq_client,
     retrieve,
@@ -57,6 +56,25 @@ in the draft answer is actually supported by the provided context. Respond \
 with ONLY a JSON object: {"faithful": true or false, "unsupported_claims": \
 [list of specific claims not supported by the context, empty list if none]}. \
 No other text.
+"""
+
+AGENTIC_GENERATOR_SYSTEM_PROMPT = """You are a helpful assistant that \
+explains FastAPI to developers, based on the official documentation. \
+Answer the user's question clearly and concisely. Use ONLY the provided \
+context chunks below as your source of truth. Each chunk is numbered and \
+includes its source URL.
+
+Rules:
+- Every factual claim in your answer must be directly supported by the \
+provided context. Do not add background knowledge, general explanations, \
+or anything not explicitly stated in the chunks.
+- Cite the chunk number(s) you used inline using ONLY plain ASCII square \
+brackets, like [1] or [1][3].
+- If the context does not contain enough information to answer, say so \
+plainly instead of guessing or using outside knowledge.
+- Include code examples from the context when they directly answer the \
+question, but introduce them in your own words first.
+- Use plain ASCII punctuation only (regular hyphens, straight quotes).
 """
 
 STRICT_REGENERATE_SYSTEM_PROMPT = """You are a documentation assistant for \
@@ -189,7 +207,7 @@ def generator_node(state: dict) -> dict:
     context_block = build_context_block(context_chunks)
 
     is_regeneration = state.get("self_check_passed") is False
-    system_prompt = STRICT_REGENERATE_SYSTEM_PROMPT if is_regeneration else GENERATOR_SYSTEM_PROMPT
+    system_prompt = STRICT_REGENERATE_SYSTEM_PROMPT if is_regeneration else AGENTIC_GENERATOR_SYSTEM_PROMPT
     user_content = f"Context:\n\n{context_block}\n\nQuestion: {state['question']}"
 
     answer = _llm_call(system_prompt, user_content)
@@ -212,9 +230,9 @@ def self_check_node(state: dict) -> dict:
 
     try:
         result = json.loads(raw)
-        faithful = bool(result.get("faithful", True))
+        faithful = bool(result.get("faithful", False))
     except (json.JSONDecodeError, TypeError, AttributeError):
-        faithful = True
+        faithful = False
 
     return {"self_check_passed": faithful}
 

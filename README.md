@@ -16,9 +16,9 @@ Unlike plain retrieve-then-generate RAG, GraphQA-Sentinel grades its own retriev
 | M1 Ingestion pipeline | Done |
 | M2 Baseline RAG | Done |
 | M3 Golden evaluation set (47 questions) | Done |
-| M4 Eval harness (RAGAS) | Implemented. Real baseline numbers pending (see [Known limitations](#known-limitations)) |
-| M5 Agentic LangGraph pipeline | Done and served by the API. Scoring the agentic pipeline in the eval harness is pending |
-| M6 Regression log + Streamlit dashboard | Done. Waiting on real eval runs to plot |
+| M4 Eval harness (RAGAS) | Done. Baseline and agentic numbers recorded (see [Results](#results)) |
+| M5 Agentic LangGraph pipeline | Done. Measurable improvement over baseline on faithfulness and answer relevancy |
+| M6 Regression log + Streamlit dashboard | Done. Dashboard plots trend lines across logged runs |
 | M7 CI gate | Workflow in place. The deliberate-failure test has not been run yet |
 | M8 Docker | Done and verified locally. Public deployment intentionally skipped (see [Deployment](#deployment)) |
 | M9 README | This file |
@@ -191,11 +191,12 @@ Then open http://localhost:8000.
 ### Evaluation and dashboard
 
 ```bash
-python -m eval.run_eval --label baseline --limit 10
+python -m eval.run_eval --label baseline --pipeline baseline --sample 12
+python -m eval.run_eval --label agentic --pipeline agentic --sample 12
 streamlit run dashboard/app.py
 ```
 
-`--limit N` takes a stratified sample across question categories. Each run writes a detailed per-question file under `eval/results/` (gitignored) and appends one summary row to `eval/regression_log.json`, which the dashboard plots.
+`--sample N` takes a stratified sample across question categories. `--fresh` regenerates all answers; `--retry-failed` resumes a partial run. Each run writes a detailed per-question file under `eval/results/` (gitignored) and appends one summary row to `eval/regression_log.json`, which the dashboard plots.
 
 ## Evaluation
 
@@ -207,14 +208,24 @@ streamlit run dashboard/app.py
 
 ### Results
 
-Real baseline and agentic numbers are not recorded yet. Placeholders are left here rather than filled with estimates.
+Scored on a stratified 12-question sample (4 factual, 4 multi-hop, 4 out-of-scope) using `qwen/qwen3.8-27b` as the judge model on Groq.
 
 | Metric | Baseline | Agentic | Change |
 |---|---|---|---|
-| Faithfulness | pending | pending | pending |
-| Answer relevancy | pending | pending | pending |
-| Context precision | pending | pending | pending |
-| Context recall | pending | pending | pending |
+| Faithfulness | 0.798 | **0.862** | +0.064 |
+| Answer relevancy | 0.625 | **0.765** | +0.140 |
+| Context precision | **0.574** | 0.540 | -0.034 |
+| Context recall | **0.597** | 0.542 | -0.055 |
+
+Per-category faithfulness (the metric the agentic loop is designed to improve):
+
+| Category | Baseline | Agentic | Change |
+|---|---|---|---|
+| Factual | 0.866 | **0.916** | +0.050 |
+| Multi-hop | 0.610 | **0.880** | +0.270 |
+| Out-of-scope | **0.917** | 0.791 | -0.126 |
+
+The agentic pipeline's retrieval grading, query rewriting, and self-check loop improve faithfulness on both factual and multi-hop questions. The out-of-scope regression is caused by the web fallback answering questions the system should decline (see [Known limitations](#known-limitations)).
 
 ## Example: what the agentic loop changes
 
@@ -230,7 +241,8 @@ The outputs vary between runs because the LLM calls are not deterministic, but i
 | Original plan | What was built | Why |
 |---|---|---|
 | App LLM: Llama 3.3 70B or Qwen3 32B on Groq | `openai/gpt-oss-120b` on Groq | Neither model was available on the Groq account used |
-| Judge: Gemini 2.5 Flash | Judge configurable via `JUDGE_MODEL`; final choice pending | Gemini 2.5 Flash returned 404 for newly created keys, its 3.x-flash successor showed a 20 requests/day free quota on the account used, and ragas's native Google adapter had bugs in the pinned version |
+| Judge: Gemini 2.5 Flash | `qwen/qwen3.8-27b` on Groq via OpenAI-compatible SDK | Gemini 2.5 Flash returned 404 for newly created keys, its 3.x-flash successor had a 20 requests/day free quota, and ragas's native Google adapter had bugs in the pinned version. Using Groq for both app and judge means the judge is the same provider but a different model family |
+| RAGAS Faithfulness metric | Custom 2-call faithfulness scorer | RAGAS's NLI schema needs 800-1200 output tokens per question, exceeding the 1,000 OTPM hard cap on Groq free tier. The custom scorer produces the same metric (ratio of context-supported claims) with ~30 output tokens for the verdict step |
 | Scraper with a CSS selector | Theme-agnostic extraction with trafilatura | The FastAPI docs moved to a new static-site generator during the project, which broke the selector on every page |
 | One grader call per chunk (allowed) | One batched grader call per retrieval | Fewer calls under tight free-tier limits |
 | Single `/chat` endpoint | `/chat` (agentic) plus `/chat/baseline` | Keeps the M2 pipeline available for direct comparison |
@@ -249,20 +261,20 @@ The app is containerized and verified to run from its Docker image locally. A pu
 
 ## Known limitations
 
-- **Eval numbers are pending.** The free tiers used for the app and judge models impose per-minute and per-day token caps that a full golden-set run can exceed, since each question needs several judge calls and the agentic pipeline makes several app-LLM calls. Completing runs needs resumable, multi-day execution or a paid judge tier.
-- **`run_eval.py` scores the baseline pipeline only.** Wiring the agentic graph in, including returning the contexts it actually used, is the next planned change.
-- **The web fallback has not been exercised end to end.** It is implemented and routed, but every manual test question so far resolved from local retrieval.
-- **Slow responses.** Each LLM call in the agent is followed by a fixed 6-second pause to stay under a free-tier tokens-per-minute cap, so a single question can take tens of seconds and longer when it retries.
+- **Out-of-scope leakage via web fallback.** When local retrieval finds too few relevant chunks for an out-of-scope question (e.g., Terraform, Redis), the system exhausts its retries and falls back to web search. Because the web search is scoped to GitHub, it can find tangentially related repositories and the generator answers from those instead of declining. The project spec says out-of-scope questions should be refused, not answered. A scope classifier before the web fallback would fix this.
+- **Free-tier daily token budget.** Groq free tier caps `qwen/qwen3.8-27b` at 200,000 tokens/day and 1,000 output tokens/minute. A full 12-question eval run with 4 metrics consumes most of the daily budget. The eval harness is resumable (`--retry-failed`), but a complete run may span multiple sessions.
+- **Custom faithfulness scorer.** RAGAS's built-in `Faithfulness` metric uses a verbose NLI schema that exceeds the 1,000 OTPM cap. It was replaced with a lightweight 2-call scorer that produces the same metric (ratio of context-supported claims) but with compact JSON output. Scores are comparable but not identical to stock RAGAS faithfulness.
+- **Slow responses.** Each LLM call in the agent is followed by a fixed 6-second pause to stay under the free-tier tokens-per-minute cap, so a single question can take tens of seconds and longer when it retries.
 - **Single-turn only.** Every question is answered independently, with no conversation memory, so follow-ups like "show that with async" fail.
 - **Fixed corpus.** Users cannot upload their own documents. The corpus is whatever was ingested at build time.
 - **Chunking is word-count based.** A long code block can be split across chunks, and sections under 20 words are dropped.
-- **Fail-open self-check.** If the self-check's own output is malformed, the draft is accepted rather than regenerated.
-- **Free-tier fragility.** Model availability and quotas on Groq and Gemini changed several times during development. The dependency stack also needed exact pins (for example `ragas` and `langchain-community`) to work together. Expect to revisit both.
+- **Free-tier fragility.** Model availability and quotas on Groq changed several times during development. The dependency stack also needed exact pins (for example `ragas` and `langchain-community`) to work together. Expect to revisit both.
 - **No deployed demo.** See [Deployment](#deployment).
 
 ## Possible future work
 
+- Scope classifier before the web fallback to refuse genuinely out-of-scope questions.
 - Multi-turn conversation memory, including resolving follow-up questions in the query analyzer.
 - User-uploaded documents with per-session vector collections.
 - A lighter embedding backend so the app fits in small free-tier containers.
-- Resumable evaluation runs and a judge model with a larger daily budget.
+- Full 47-question eval run (current results use a 12-question stratified sample).
