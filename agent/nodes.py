@@ -70,8 +70,10 @@ provided context. Do not add background knowledge, general explanations, \
 or anything not explicitly stated in the chunks.
 - Cite the chunk number(s) you used inline using ONLY plain ASCII square \
 brackets, like [1] or [1][3].
-- If the context does not contain enough information to answer, say so \
-plainly instead of guessing or using outside knowledge.
+- Always attempt a full answer from the available chunks. Do NOT open with \
+an apology or say the context is insufficient; synthesise the best answer \
+you can from what is provided. Omit specific details that are missing, but \
+do not refuse to answer.
 - Include code examples from the context when they directly answer the \
 question, but introduce them in your own words first.
 - Use plain ASCII punctuation only (regular hyphens, straight quotes).
@@ -80,19 +82,30 @@ question, but introduce them in your own words first.
 STRICT_REGENERATE_SYSTEM_PROMPT = """You are a documentation assistant for \
 FastAPI. The previous answer included claims not supported by the provided \
 context. Regenerate the answer using ONLY information explicitly stated in \
-the context below. If the context does not fully support an answer, say so \
-explicitly rather than filling gaps with outside knowledge. Cite chunk \
-numbers inline like [1] or [1][3]. Use plain ASCII punctuation only (no \
-em-dashes or curly quotes).
+the context below. Answer as fully as the context allows — include everything \
+the context does cover. Omit any specific claim or detail that the context \
+does not explicitly state; do not substitute general knowledge. Do not open \
+with an apology or a statement about what the context lacks; just answer \
+directly from what is there. Cite chunk numbers inline like [1] or [1][3]. \
+Use plain ASCII punctuation only (no em-dashes or curly quotes).
 """
 
 SCOPE_CHECK_SYSTEM_PROMPT = """You decide whether a user question is within \
 the scope of a documentation assistant for FastAPI (the Python web framework). \
-Respond with ONLY a JSON object: {"in_scope": true or false}. \
-A question is in-scope if it is about FastAPI concepts, usage, or its official \
-documentation. A question is out-of-scope if it is primarily about a different \
-technology (Kubernetes, Terraform, Redis, Next.js, etc.) even if that technology \
-could be used alongside FastAPI. No other text.
+Respond with ONLY a JSON object: {"in_scope": true or false}. No other text.
+
+Rules:
+- in_scope=true ONLY if the question is primarily about FastAPI itself: its \
+API, decorators, dependencies, middleware, routing, request/response models, \
+background tasks, WebSockets, testing, or anything covered in the FastAPI docs.
+- in_scope=false if the PRIMARY subject is a different technology, even if \
+FastAPI is mentioned incidentally. Out-of-scope topics: Kubernetes, Terraform, \
+AWS, Redis, Next.js, server-side rendering, pub/sub messaging, container \
+orchestration, CI/CD pipelines, infrastructure or devops tools. \
+Example: "How do I set up SSR with Next.js to consume a FastAPI backend?" is \
+about Next.js -- mark it out-of-scope.
+- When in doubt, prefer in_scope=false rather than hallucinate answers \
+about technologies not in the FastAPI documentation.
 """
 
 OUT_OF_SCOPE_ANSWER = (

@@ -185,6 +185,7 @@ def run_pipeline(pipeline: str, question: str):
                     "retry_count": result["retry_count"],
                     "used_web_fallback": result["used_web_fallback"],
                     "self_check_passed": result["self_check_passed"],
+                    "is_in_scope": result.get("is_in_scope", True),
                 }
             if not answer or not answer.strip():
                 raise RuntimeError("pipeline returned an empty answer")
@@ -235,6 +236,30 @@ def score_answers(items: list[dict], save) -> bool:
 
     for n, item in enumerate(todo, start=1):
         print(f"[score {n}/{len(todo)}] ({item['category']}) {item['question']}")
+
+        # Declined out-of-scope answers: pre-fill scores without calling the
+        # judge. Scoring rationale:
+        #   faithfulness      = 1.0  (canned response; no claims were made)
+        #   answer_relevancy  = 0.0  (the decline does not answer the question)
+        #   context_precision = None (undefined: no context retrieved, so the
+        #                            metric has no denominator; None is excluded
+        #                            from the category average by summarize())
+        #   context_recall    = 0.0  (no relevant chunks returned)
+        if not item.get("meta", {}).get("is_in_scope", True):
+            DECLINED_SCORES = {
+                "faithfulness": 1.0,
+                "answer_relevancy": None,   # undefined: system declined; not comparable to an answered question
+                "context_precision": None,
+                "context_recall": 0.0,
+            }
+            for name in missing_metrics(item):
+                val = DECLINED_SCORES.get(name, 0.0)
+                item["scores"][name] = val
+                label = "undefined (excluded)" if val is None else f"{val:.3f}"
+                print(f"  {name}: {label} (scope-declined, not scored by judge)")
+            save()
+            continue
+
         # An empty context list means nothing usable was retrieved; RAGAS needs
         # at least one string, so pass an explicit statement of that fact.
         contexts = item["contexts"] or [NO_CONTEXT_PLACEHOLDER]

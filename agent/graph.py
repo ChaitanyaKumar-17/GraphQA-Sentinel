@@ -116,6 +116,7 @@ def answer_question_agentic(question: str) -> dict:
         "answer": result.get("final_answer", ""),
         "sources": result.get("sources", []),
         "contexts": [c["text"] for c in context_chunks],
+        "is_in_scope": result.get("is_in_scope", True),
         "used_web_fallback": result.get("used_web_fallback", False),
         "retry_count": result.get("retry_count", 0),
         "self_check_passed": result.get("self_check_passed", True),
