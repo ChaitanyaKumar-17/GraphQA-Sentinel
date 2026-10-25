@@ -4,20 +4,6 @@ A self-correcting RAG agent over the FastAPI documentation, with a continuous ev
 
 Unlike plain retrieve-then-generate RAG, GraphQA-Sentinel grades its own retrieval, rewrites the query and retries when retrieval is weak, classifies out-of-scope questions and declines them, falls back to a scoped web search for genuine retrieval gaps, and fact-checks its own draft answer against the retrieved context before responding.
 
-## Status
-
-| Milestone | State |
-|---|---|
-| M1 Ingestion pipeline | Done |
-| M2 Baseline RAG | Done |
-| M3 Golden evaluation set (47 questions) | Done |
-| M4 Eval harness (RAGAS) | Done |
-| M5 Agentic LangGraph pipeline | Done |
-| M6 Regression log + Streamlit dashboard | Done |
-| M7 CI gate | Workflow in place |
-| M8 Docker | Done and verified locally |
-| M9 README | This file |
-
 ## Architecture
 
 ### Agent graph
@@ -207,25 +193,14 @@ The agentic pipeline wins clearly on answer relevancy and context precision. Fai
 
 ## Design decisions
 
-| Original plan | What was built | Why |
-|---|---|---|
-| App LLM: Llama 3.3 70B or Qwen3 32B | `openai/gpt-oss-120b` on Groq | Neither model was available on the account used |
-| Judge: Gemini 2.5 Flash | `qwen/qwen3.8-27b` on Groq | Gemini 2.5 Flash returned 404 for new keys; its successor had a 20 req/day free quota; RAGAS's Google adapter had bugs in the pinned version |
-| RAGAS `Faithfulness` metric | Custom 2-call faithfulness scorer | RAGAS's NLI schema produces 800-1200 output tokens per question, exceeding the 1,000 OTPM cap on Groq free tier. The custom scorer returns `{"verdicts": [1,0,...]}` (~30 tokens) and produces the same ratio metric |
-| Scraper with CSS selector | trafilatura-based extraction | The FastAPI docs changed static-site generators mid-project, breaking the selector |
-| One grader call per chunk | One batched grader call | Fewer LLM calls under free-tier limits |
-| Single `/chat` endpoint | `/chat` + `/chat/baseline` | Keeps the baseline pipeline available for comparison |
-| Public URL on a free host | Local Docker only | See below |
-
-## Deployment
-
-Evaluated and deliberately skipped:
-
-- **Hugging Face Spaces (Docker):** free CPU Docker Spaces required PRO at the time of writing.
-- **Render free tier:** 512 MB RAM cap; torch + sentence-transformers + ChromaDB + LangGraph together exceed that.
-- **Oracle Cloud / Google Cloud Run:** genuinely free but require a payment card at signup.
-
-The app is containerized and verified locally. Any host with ~1 GB+ RAM can run it.
+| Choice | Why |
+|---|---|
+| App LLM: `openai/gpt-oss-120b` on Groq | Llama 3.3 70B and Qwen3 32B were not available on the account used |
+| Judge: `qwen/qwen3.8-27b` on Groq | Gemini 2.5 Flash returned 404 for new keys; its successor had a 20 req/day free quota; RAGAS's Google adapter had bugs in the pinned version |
+| Custom 2-call faithfulness scorer | RAGAS's NLI schema produces 800-1200 output tokens per question, exceeding the 1,000 OTPM cap on Groq free tier. The custom scorer returns `{"verdicts": [1,0,...]}` (~30 tokens) and produces the same ratio metric |
+| trafilatura-based scraper | The FastAPI docs changed static-site generators mid-project, breaking a CSS-selector approach |
+| One batched grader call per retrieval | Fewer LLM calls under free-tier limits vs one call per chunk |
+| `/chat` + `/chat/baseline` endpoints | Keeps the baseline pipeline available for direct comparison |
 
 ## Known limitations
 
